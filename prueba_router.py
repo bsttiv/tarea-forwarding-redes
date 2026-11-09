@@ -22,6 +22,6 @@ if __name__ == "__main__":
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     for linea in sys.stdin:
         linea = linea.rstrip("\n")
-        paquete = header.Header(ip_destino.encode(), puerto_destino.encode(), linea.encode(), ttl.encode())
+        paquete = header.Header(ip_destino.encode(), int(puerto_destino), linea.encode(), int(ttl))
         s.sendto(paquete.to_packet(), (ip_router_inicial, puerto_router_inicial))
     s.close()

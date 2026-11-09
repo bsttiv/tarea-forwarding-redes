@@ -3,15 +3,13 @@ import socket
 import header
 
 def parse_packet(IP_Packet: bytes) -> header.Header:
-    split = IP_Packet.split(b";", 3)
-    if len(split) != 4:
-        print("El paquete recibido tiene un formato incorrecto")
-        return
-    ip_bytes = split[0]
-    puerto_bytes = split[1]
-    msg = split[3]
-    ttl = split[2]
-    return header.Header(ip_bytes, puerto_bytes, msg, ttl)
+    if len(IP_Packet) < 7:
+        return None
+    ip     = ".".join(str(b) for b in IP_Packet[0:4]).encode()
+    puerto = int.from_bytes(IP_Packet[4:6])
+    ttl    = int.from_bytes(IP_Packet[6:7])
+    msg    = IP_Packet[7:]
+    return header.Header(ip, puerto, msg, ttl)
 
 def create_packet(ip_packet: header.Header) -> bytes:
     return ip_packet.to_packet()
@@ -27,6 +25,12 @@ def ip_to_num(ip:str) -> int:
             return
         num |= (val << (8 * (3 - i)))
     return num
+
+def num_to_ip(ip_num: int) -> str:
+    s = ""
+    for i in range(4):
+        s = s + str((ip_num >> (8*(3-i))) & 0xFF) + "."
+    return s[:-1]
 
 def ip_in_cidr(ip_dest_num: int, cidr_ip: str, cidr_mascara: int) -> bool:
     cidr_ip_num = ip_to_num(cidr_ip)
@@ -50,29 +54,26 @@ class Router:
         sock.bind((self.ip, self.puerto))
         while True:
             msg, _ = sock.recvfrom(1024)
-            try:
-                msg_dec = msg.decode().split(";", 3)
-                ip = msg_dec[0]
-                puerto = int(msg_dec[1])
-                ttl = int(msg_dec[2])
-            except Exception:
+            msg_dec = parse_packet(msg)
+            if msg_dec is None:
                 print("Mensaje con formato incorrecto ignorado")
                 continue
-            if ttl <= 0:
-                print(f"Se recibió paquete {msg.decode()} con TTL 0")
+            if int.from_bytes(msg_dec.ttl) <= 0:
+                print(f"Se recibió paquete {str(msg_dec)} con TTL 0")
                 continue
-            if router_ip != ip or puerto != router_puerto:
+            ip = num_to_ip(int.from_bytes(msg_dec.ip))
+            puerto = int.from_bytes(msg_dec.puerto)
+            if self.ip != ip or puerto != self.puerto:
                 forward = self.check_routes(router_rutas, (ip, puerto))
                 if forward is None:
-                    print(f"No hay rutas hacia {ip}:{puerto} para paquete {msg.decode()}")
+                    print(f"No hay rutas hacia {ip}:{puerto} para paquete {str(msg_dec)}")
                     continue
-                print(f"Redirigiendo paquete {msg.decode()} con destino final {ip} desde {router_ip}:{router_puerto} hacia {forward}")
-                parsed = parse_packet(msg)
-                parsed.ttl = (int.from_bytes(parsed.ttl) - 1).to_bytes(1)
-                to_bytes = create_packet(parsed)
+                print(f"Redirigiendo paquete {str(msg_dec)} con destino final {ip} desde {self.ip}:{self.puerto} hacia {forward}")
+                msg_dec.ttl = (int.from_bytes(msg_dec.ttl) - 1).to_bytes(1)
+                to_bytes = create_packet(msg_dec)
                 sock.sendto(to_bytes, forward)
                 continue
-            print(msg_dec[3])
+            print(msg_dec.msg.decode(errors="replace"))
     def check_routes(self, routes_file_name: str, destination_address: tuple[str, int]) -> tuple[str, int]:
         lector = open(routes_file_name)
         ip_destino = destination_address[0]
