@@ -2,19 +2,22 @@ import sys
 import socket
 import header
 
+
 def parse_packet(IP_Packet: bytes) -> header.Header:
     if len(IP_Packet) < 7:
         return None
-    ip     = ".".join(str(b) for b in IP_Packet[0:4]).encode()
+    ip = ".".join(str(b) for b in IP_Packet[0:4]).encode()
     puerto = int.from_bytes(IP_Packet[4:6])
-    ttl    = int.from_bytes(IP_Packet[6:7])
-    msg    = IP_Packet[7:]
+    ttl = int.from_bytes(IP_Packet[6:7])
+    msg = IP_Packet[7:]
     return header.Header(ip, puerto, msg, ttl)
+
 
 def create_packet(ip_packet: header.Header) -> bytes:
     return ip_packet.to_packet()
 
-def ip_to_num(ip:str) -> int:
+
+def ip_to_num(ip: str) -> int:
     num = 0
     ip_split = ip.split(".")
     for i in range(4):
@@ -23,19 +26,22 @@ def ip_to_num(ip:str) -> int:
         except Exception:
             print("Formato de IP incorrecto")
             return
-        num |= (val << (8 * (3 - i)))
+        num |= val << (8 * (3 - i))
     return num
+
 
 def num_to_ip(ip_num: int) -> str:
     s = ""
     for i in range(4):
-        s = s + str((ip_num >> (8*(3-i))) & 0xFF) + "."
+        s = s + str((ip_num >> (8 * (3 - i))) & 0xFF) + "."
     return s[:-1]
+
 
 def ip_in_cidr(ip_dest_num: int, cidr_ip: str, cidr_mascara: int) -> bool:
     cidr_ip_num = ip_to_num(cidr_ip)
-    desp = 32-cidr_mascara
+    desp = 32 - cidr_mascara
     return ((ip_dest_num >> desp) ^ (cidr_ip_num >> desp)) == 0
+
 
 class Router:
     def __init__(self, ip, puerto, archivo):
@@ -49,6 +55,7 @@ class Router:
         # Las rutas default (/0) usan el area (routes_file_name, ("default",) y solo se usan si
         # ninguna otra ruta calza.
         self.visitadas = {}
+
     def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind((self.ip, self.puerto))
@@ -64,17 +71,24 @@ class Router:
             ip = num_to_ip(int.from_bytes(msg_dec.ip))
             puerto = int.from_bytes(msg_dec.puerto)
             if self.ip != ip or puerto != self.puerto:
-                forward = self.check_routes(router_rutas, (ip, puerto))
+                forward = self.check_routes(self.archivo, (ip, puerto))
                 if forward is None:
-                    print(f"No hay rutas hacia {ip}:{puerto} para paquete {str(msg_dec)}")
+                    print(
+                        f"No hay rutas hacia {ip}:{puerto} para paquete {str(msg_dec)}"
+                    )
                     continue
-                print(f"Redirigiendo paquete {str(msg_dec)} con destino final {ip} desde {self.ip}:{self.puerto} hacia {forward}")
+                print(
+                    f"Redirigiendo paquete {str(msg_dec)} con destino final {ip}:{msg_dec.puerto} desde {self.ip}:{self.puerto} hacia {forward}"
+                )
                 msg_dec.ttl = (int.from_bytes(msg_dec.ttl) - 1).to_bytes(1)
                 to_bytes = create_packet(msg_dec)
                 sock.sendto(to_bytes, forward)
                 continue
             print(msg_dec.msg.decode(errors="replace"))
-    def check_routes(self, routes_file_name: str, destination_address: tuple[str, int]) -> tuple[str, int]:
+
+    def check_routes(
+        self, routes_file_name: str, destination_address: tuple[str, int]
+    ) -> tuple[str, int]:
         lector = open(routes_file_name)
         ip_destino = destination_address[0]
         ip_dest_num = ip_to_num(ip_destino)
@@ -90,16 +104,19 @@ class Router:
             cidr_dest = linea_split[0].split("/")
             cidr_ip = cidr_dest[0]
             cidr_mascara = int(cidr_dest[1])
-            
+
             # Conjunto de puertos de destino
             inicio_rango_puerto = int(linea_split[1])
             fin_rango_puerto = int(linea_split[2])
-            
+
             # Router al que enviar la peticion
             ip_siguiente = linea_split[3]
             puerto_siguiente = int(linea_split[4])
-            
-            if ip_in_cidr(ip_dest_num, cidr_ip, cidr_mascara) and inicio_rango_puerto <= puerto_destino <= fin_rango_puerto:
+
+            if (
+                ip_in_cidr(ip_dest_num, cidr_ip, cidr_mascara)
+                and inicio_rango_puerto <= puerto_destino <= fin_rango_puerto
+            ):
                 if cidr_mascara == 0:
                     rutas_default.append((ip_siguiente, puerto_siguiente))
                 else:
@@ -109,23 +126,27 @@ class Router:
         if len(posibles_destinos) == 0:
             posibles_destinos = rutas_default
             lineas_area = ["default"]
-        if len(posibles_destinos) == 0: return None
+        if len(posibles_destinos) == 0:
+            return None
         area = (routes_file_name, tuple(lineas_area))
         indice = self.visitadas.get(area, 0)
         self.visitadas[area] = (indice + 1) % len(posibles_destinos)
         return posibles_destinos[indice]
-            
+
+
 if __name__ == "__main__":
     args = sys.argv
     if len(args) != 4:
-        print("router.py recibe 3 argumentos: router_ip, router_puerto router_rutas")
+        print(
+            "router.py recibe 3 argumentos: router_ip, router_puerto router_rutas"
+        )
         sys.exit(1)
-    
+
     # Se asume que se entregan los tipos correctos, por simplicidad
     # Se asume tambien que la tabla de rutas tiene el formato correcto
     router_ip = sys.argv[1]
     router_puerto = int(sys.argv[2])
     router_rutas = sys.argv[3]
-    
+
     router = Router(router_ip, router_puerto, router_rutas)
     router.start()
