@@ -1,0 +1,4 @@
+Redirigiendo paquete 127.0.0.1;8883;255;hola R3 con destino final 127.0.0.1:8883 desde 127.0.0.1:8881 hacia ('127.0.0.1', 8882)
+Redirigiendo paquete 127.0.0.1;8882;255;hola R2 con destino final 127.0.0.1:8882 desde 127.0.0.1:8881 hacia ('127.0.0.1', 8882)
+No hay rutas hacia 127.0.0.1:8884 para paquete 127.0.0.1;8884;255;hola
+hola R1
