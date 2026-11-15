@@ -78,7 +78,7 @@ class Router:
                     )
                     continue
                 print(
-                    f"Redirigiendo paquete {str(msg_dec)} con destino final {ip}:{msg_dec.puerto} desde {self.ip}:{self.puerto} hacia {forward}"
+                    f"Redirigiendo paquete {str(msg_dec)} con destino final {ip}:{puerto} desde {self.ip}:{self.puerto} hacia {forward}"
                 )
                 msg_dec.ttl = (int.from_bytes(msg_dec.ttl) - 1).to_bytes(1)
                 to_bytes = create_packet(msg_dec)
